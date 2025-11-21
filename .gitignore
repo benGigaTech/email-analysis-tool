@@ -12,7 +12,7 @@ venv/
 
 # Environment & local state
 .env
-.env.*
+!.env.example
 state.json
 /data/
 
