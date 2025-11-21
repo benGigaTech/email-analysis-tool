@@ -30,14 +30,23 @@ async def ensure_quarantine_folder(user_id: str, folder_name: str = "AI-Quaranti
 
     async with httpx.AsyncClient() as client:
         payload = {"displayName": folder_name}
-        resp = await client.post(
-            f"{GRAPH_BASE}/users/{user_id}/mailFolders",
-            headers=headers,
-            json=payload,
-        )
-        resp.raise_for_status()
-        folder = resp.json()
-        folder_id = folder["id"]
+        try:
+            resp = await client.post(
+                f"{GRAPH_BASE}/users/{user_id}/mailFolders",
+                headers=headers,
+                json=payload,
+            )
+            resp.raise_for_status()
+            folder = resp.json()
+            folder_id = folder["id"]
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 409:
+                raise
+            # Folder already exists – look it up
+            folder_id = await _lookup_folder_id(client, user_id, headers, folder_name)
+            if not folder_id:
+                # Surface original error if lookup somehow fails
+                raise
 
     user_state["quarantine_folder_id"] = folder_id
     users_state[user_id] = user_state
@@ -45,3 +54,17 @@ async def ensure_quarantine_folder(user_id: str, folder_name: str = "AI-Quaranti
     save_state(state)
 
     return folder_id
+
+
+async def _lookup_folder_id(client: httpx.AsyncClient, user_id: str, headers: dict, folder_name: str) -> str | None:
+    params = {"$filter": f"displayName eq '{folder_name}'", "$top": "50"}
+    resp = await client.get(
+        f"{GRAPH_BASE}/users/{user_id}/mailFolders",
+        headers=headers,
+        params=params,
+    )
+    resp.raise_for_status()
+    for folder in resp.json().get("value", []):
+        if folder.get("displayName") == folder_name:
+            return folder.get("id")
+    return None
