@@ -23,6 +23,8 @@ state.json
 .DS_Store
 Thumbs.db
 
+NOTES.md
+
 # Logs
 *.log
 
