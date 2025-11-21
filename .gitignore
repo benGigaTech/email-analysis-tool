@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite-wal
+*.sqlite-shm
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment & local state
+.env
+.env.*
+state.json
+/data/
+
+# IDE/editor junk
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Systemd overrides/backups
+*.service
+!ai-email-api.service.example
+!ai-email-poller.service.example
+
+# Ollama cache (if synced here)
+ollama/

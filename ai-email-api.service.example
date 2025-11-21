@@ -1,0 +1,15 @@
+[Unit]
+Description=AI Email Filter API (FastAPI + Uvicorn)
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ai-email-filter
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/ai-email-filter/venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
