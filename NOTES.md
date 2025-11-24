@@ -12,6 +12,7 @@
   - Added **Statistics Widget** to dashboard (Total, Quarantined, Released, Allowed).
   - Implemented **HTTP Basic Authentication** for `/admin` routes.
   - Updated `.env.example` with `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
+  - Added **Search & Filter** to dashboard (filter by sender/subject).
 - **Deployment Documentation**:
   - Added comprehensive `Section 7` in README for Proxmox LXC deployment.
   - Documented `ct-llm` (Ollama) and `ct-ai-filter` (Poller) setup explicitly.
@@ -204,16 +205,13 @@ We are **ready to continue** with:
 
 ## ⭐ Proposed Next Steps (Pick any when restarting)
 
-### **1. Search & Filter (Dashboard)**
-Add a text box to filter rows by Subject or Sender.
-
-### **2. Full-body email analysis**
+### **1. Full-body email analysis (Phase 2)**
 Fetch full email MIME/HTML content (not just bodyPreview) for better LLM accuracy.
 
-### **3. URL reputation heuristics layer**
+### **2. URL reputation heuristics layer**
 Add suspicious TLD detection, IP-based URL detection, etc.
 
-### **4. Attachment awareness**
+### **3. Attachment awareness**
 Detect dangerous file extensions or names.
 
 ---
@@ -230,10 +228,10 @@ If you paste the following block into a new conversation, I will automatically u
 
 - **Parallel Polling**: `services/poller.py` processes 5 emails concurrently via `asyncio.Semaphore`.
 - **Local LLM**: Llama 3.1 8B running on a separate container via Ollama.
-- **Dashboard**: FastAPI + Jinja2 admin panel with **Statistics**, **Basic Auth**, and correct status labels.
+- **Dashboard**: FastAPI + Jinja2 admin panel with **Statistics**, **Basic Auth**, **Search**, and correct status labels.
 - **Deployment**: Fully documented `systemd` setup in README.
 
 **Current Status:**
 - Poller is fast and stable.
-- Dashboard is secured and shows real-time metrics.
-- Ready to add **Search & Filter** and **Full-body Analysis**.
+- Dashboard is secured, searchable, and shows real-time metrics.
+- Ready to implement **Full-body Analysis** (fetch complete email body via Graph).

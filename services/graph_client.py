@@ -109,7 +109,8 @@ async def get_delta_messages(user_id: str):
     headers = {"Authorization": f"Bearer {token}"}
 
     if not delta_link:
-        url = f"{GRAPH_BASE}/users/{user_id}/mailFolders/inbox/messages/delta"
+        # Request body so we can do full analysis
+        url = f"{GRAPH_BASE}/users/{user_id}/mailFolders/inbox/messages/delta?$select=id,subject,from,receivedDateTime,bodyPreview,body"
     else:
         url = delta_link
 

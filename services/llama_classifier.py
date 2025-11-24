@@ -26,14 +26,25 @@ async def classify_with_llama(email: dict) -> dict:
         .get("address", "")
     )
     subject = email.get("subject", "")
-    body_preview = email.get("bodyPreview", "") or ""
+    
+    # Prefer full body content if available (from new delta queries), else fallback to preview
+    body_content = email.get("body", {}).get("content", "")
+    if body_content:
+        # Truncate to ~10k chars to keep LLM prompt size reasonable
+        # Llama 3.1 8B supports 128k context, but Ollama defaults vary and speed matters.
+        if len(body_content) > 10000:
+            body_text = body_content[:10000] + "\n...[TRUNCATED]..."
+        else:
+            body_text = body_content
+    else:
+        body_text = email.get("bodyPreview", "") or ""
 
-    urls = extract_urls(body_preview)
+    urls = extract_urls(body_text)
 
     payload = {
         "sender": sender,
         "subject": subject,
-        "body": body_preview,
+        "body": body_text,
         "urls": urls,
     }
 

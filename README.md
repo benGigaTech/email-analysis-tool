@@ -17,7 +17,7 @@ Key components:
 - **Poller container (CT100)** – Async loop invoking Microsoft Graph delta queries, extracting URLs from email bodies, classifying messages via LLM, and moving risky email into AI-Quarantine.
 - **LLM container** – FastAPI wrapper around local Ollama Llama 3.1 8B for deterministic JSON threat scoring.
 - **SQLite logging** – `data/quarantine.db` stores every decision, release status, timestamps, and user metadata.
-- **Admin dashboard** – FastAPI + Jinja2 template served at `/admin/quarantine` with statistics, Basic Auth, and release workflow.
+- **Admin dashboard** – FastAPI + Jinja2 template served at `/admin/quarantine` with statistics, search, Basic Auth, and release workflow.
 - **Systemd services** – `ai-email-poller.service` and `ai-email-api.service` keep poller and dashboard running on boot.
 
 ## 2. Repository Layout
