@@ -32,6 +32,9 @@ Email Metadata:
 From: {sender}
 Subject: {subject}
 
+System Detected Warnings (heuristic analysis):
+{warnings_section}
+
 Body Preview:
 {body}
 
@@ -60,17 +63,24 @@ async def classify_email(email: dict):
     subject = email.get("subject", "")
     body = email.get("body", "")
     urls = email.get("urls", []) or []
+    warnings = email.get("url_warnings", []) or []
 
     if urls:
         urls_section = "\n".join(f"- {u}" for u in urls)
     else:
         urls_section = "No links detected."
 
+    if warnings:
+        warnings_section = "\n".join(f"CRITICAL: {w}" for w in warnings)
+    else:
+        warnings_section = "None."
+
     prompt = EMAIL_CLASSIFIER_PROMPT.format(
         sender=sender,
         subject=subject,
         body=body,
         urls_section=urls_section,
+        warnings_section=warnings_section,
     )
 
     payload = {

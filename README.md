@@ -200,7 +200,7 @@ This guide assumes two Ubuntu 22.04 LXC containers. Adjust IPs and paths as need
 ## 8. Directory & Data Considerations
 
 - `data/quarantine.db` – SQLite database; back up regularly. Safe to delete only if you accept losing history.
-- `state.json` – Holds Graph delta tokens + cached folder IDs per user. Deleting forces full sync (longer first run).
+- `state.json` – Holds Graph delta tokens + cached folder IDs. **Delete this file to force a full re-sync (required when enabling new analysis features like Full Body).**
 - `templates/` – Update `quarantine.html` for UI tweaks.
 - `llm-api/` – Deployed separately (optionally under its own systemd service). Ensure `LLM_API_URL` points to it.
 - Logs – All services emit structured stdout logs via `services.logging_utils` (12-factor). Use `LOG_FORMAT=json` for ingestion into centralized pipelines; systemd/journald captures stdout automatically.
@@ -233,9 +233,8 @@ After deployment:
 
 ## 11. Future Enhancements
 
-- Full-body message retrieval and attachment inspection.
 - URL reputation heuristics & enrichment.
-- Dashboard authentication (Basic/Azure AD).
 - Policy engine with per-user thresholds.
+- Attachment inspection (File types, macro scanning).
 
 Track ideas or status in `NOTES.md`.

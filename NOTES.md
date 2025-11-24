@@ -13,6 +13,9 @@
   - Implemented **HTTP Basic Authentication** for `/admin` routes.
   - Updated `.env.example` with `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
   - Added **Search & Filter** to dashboard (filter by sender/subject).
+- **Full-Body Analysis (Phase 2)**:
+  - Updated Graph delta query to fetch `body` content.
+  - Updated LLM classifier to use full body text (truncated to 10k chars).
 - **Deployment Documentation**:
   - Added comprehensive `Section 7` in README for Proxmox LXC deployment.
   - Documented `ct-llm` (Ollama) and `ct-ai-filter` (Poller) setup explicitly.
@@ -205,13 +208,10 @@ We are **ready to continue** with:
 
 ## ⭐ Proposed Next Steps (Pick any when restarting)
 
-### **1. Full-body email analysis (Phase 2)**
-Fetch full email MIME/HTML content (not just bodyPreview) for better LLM accuracy.
-
-### **2. URL reputation heuristics layer**
+### **1. URL reputation heuristics layer (Phase 3)**
 Add suspicious TLD detection, IP-based URL detection, etc.
 
-### **3. Attachment awareness**
+### **2. Attachment awareness**
 Detect dangerous file extensions or names.
 
 ---
