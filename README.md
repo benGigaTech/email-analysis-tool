@@ -80,6 +80,7 @@ See `.env.example` for documented values:
 
 - `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`, `GRAPH_SCOPE`
 - `MONITORED_USER` (legacy endpoints) and `MONITORED_USERS` fallback list
+- `ENABLE_TENANT_DISCOVERY` ("true"/"false") to toggle between full tenant scanning and single-mailbox testing
 - `ORG_DOMAIN`, `RISK_THRESHOLD`, `LLM_API_URL`, optional `QUARANTINE_FOLDER_ID`
 - `LOG_LEVEL` (DEBUG/INFO/WARNING/ERROR) and `LOG_FORMAT` (`plain` or `json`) for stdout logging
 
