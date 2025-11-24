@@ -5,16 +5,16 @@ Self-hosted Microsoft 365 email filtering stack combining a delta-based poller, 
 ## 1. Architecture Overview
 
 ```
-[Microsoft Graph delta] -> [poller @ services/poller.py] -> [LLM API (llm-api/api)]
-         |                         |                           |
-   state.json cache         SQLite quarantine.db        Ollama Llama 3.1
-         |                         v                           |
+[Microsoft Graph delta] -> [poller @ services/poller.py] -> [URL Extraction] -> [LLM API (llm-api/api)]
+         |                              |                            |
+   state.json cache              SQLite quarantine.db           Ollama Llama 3.1
+         |                              v                            |
          +--------> [Admin API + Dashboard /api/main.py + templates/quarantine.html]
 ```
 
 Key components:
 
-- **Poller container (CT100)** – Async loop invoking Microsoft Graph delta queries, classifying messages, and moving risky email into AI-Quarantine.
+- **Poller container (CT100)** – Async loop invoking Microsoft Graph delta queries, extracting URLs from email bodies, classifying messages via LLM, and moving risky email into AI-Quarantine.
 - **LLM container** – FastAPI wrapper around local Ollama Llama 3.1 8B for deterministic JSON threat scoring.
 - **SQLite logging** – `data/quarantine.db` stores every decision, release status, timestamps, and user metadata.
 - **Admin dashboard** – FastAPI + Jinja2 template served at `/admin/quarantine` with release workflow.
@@ -54,6 +54,7 @@ Key components:
 # Create .env from template
 cp .env.example .env
 # edit .env with tenant/client secrets, monitored users, LLM API URL, etc.
+# TIP: Set ENABLE_TENANT_DISCOVERY=false to test with a single mailbox first!
 
 # Bootstrap virtualenv & install deps
 ./scripts/setup.sh
@@ -97,40 +98,105 @@ Place `.env` at repo root so `load_dotenv()` in services can pick it up.
   pip install -r requirements.txt
   ```
 
-## 7. Deployment (Systemd)
+## 7. Deployment (Proxmox LXC / Systemd)
 
-1. Copy repo to `/opt/ai-email-filter` (match WorkingDirectory in unit files).
-2. Create virtualenv inside `/opt/ai-email-filter/venv` and install requirements.
-3. Copy `.env` and ensure `state.json` + `data/` are writable by service user.
-   - `scripts/setup.sh` creates **`.venv/`** by default. If you retain that name, set ExecStart paths accordingly (see below).
-4. Install service files:
+This guide assumes two Ubuntu 22.04 LXC containers. Adjust IPs and paths as needed.
+
+| Container | Role | Static IP |
+|-----------|------|-----------|
+| `ct-ai-filter` | Poller + Dashboard | 192.168.1.110 |
+| `ct-llm` | Ollama + LLM API | 192.168.1.111 |
+
+### A. Configure `ct-llm` (192.168.1.111)
+
+1. **Install Ollama:**
    ```bash
-   sudo cp ai-email-api.service.example /etc/systemd/system/ai-email-api.service
-   sudo cp ai-email-poller.service.example /etc/systemd/system/ai-email-poller.service
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now ai-email-api.service ai-email-poller.service
+   curl -fsSL https://ollama.com/install.sh | sh
+   ollama pull llama3.1:8b
    ```
-   Sample ExecStart paths (adjust if you renamed the venv):
-   - API: `/opt/ai-email-filter/.venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000`
-   - Poller: `/opt/ai-email-filter/.venv/bin/python -m services.poller`
-5. Logs: `journalctl -u ai-email-api -f` and `journalctl -u ai-email-poller -f`.
 
-## 8. Reference Proxmox Deployment
+2. **Deploy LLM API Wrapper:**
+   ```bash
+   # Create directory
+   mkdir -p /opt/llm-api
+   cd /opt/llm-api
+   
+   # Copy the `llm-api/` folder from this repo to here (scp or git clone + mv)
+   # Example if you cloned the repo to /tmp/eye-of-sauron:
+   # cp -r /tmp/eye-of-sauron/llm-api/* /opt/llm-api/
+   
+   # Create venv & install
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install fastapi uvicorn httpx
+   ```
 
-Example layout that has been validated end-to-end:
+3. **Create Systemd Service for LLM API:**
+   Create `/etc/systemd/system/llm-api.service`:
+   ```ini
+   [Unit]
+   Description=LLM API Wrapper
+   After=network.target
 
-| Container | Role | OS | Resources | Static IP |
-|-----------|------|----|-----------|-----------|
-| `ct-ai-filter` | Poller + API/dashboard | Ubuntu 22.04 LXC | 2 vCPU / 4 GB RAM / 20 GB disk | `192.168.1.110` |
-| `ct-llm` | Ollama + LLM FastAPI wrapper | Ubuntu 22.04 LXC | 4 vCPU / 16 GB RAM / 40 GB disk (or GPU) | `192.168.1.111` |
+   [Service]
+   User=root
+   WorkingDirectory=/opt/llm-api
+   ExecStart=/opt/llm-api/.venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8081
+   Restart=always
+   RestartSec=5
 
-Steps:
-1. Provision LXCs with nesting enabled, SSH access, outbound HTTPS.
-2. On `ct-ai-filter`: clone repo to `/opt/ai-email-filter`, run `scripts/setup.sh`, configure `.env` with Graph secrets + `LLM_API_URL=http://192.168.1.111:8081/classify`, then install systemd services pointing at `.venv`.
-3. On `ct-llm`: install Ollama, `ollama pull llama3.1:8b`, deploy `llm-api` subfolder under `/opt/llm-api`, create venv, `pip install fastapi uvicorn httpx`, and run via `llm-api.service` bound to port `8081`.
-4. Network: limit port 8000 to admins, allow 8081 only from poller container.
+   [Install]
+   WantedBy=multi-user.target
+   ```
 
-## 9. Directory & Data Considerations
+4. **Enable & Start:**
+   ```bash
+   systemctl daemon-reload
+   systemctl enable --now llm-api
+   ```
+
+### B. Configure `ct-ai-filter` (192.168.1.110)
+
+1. **Clone & Setup:**
+   ```bash
+   cd /opt
+   git clone <your-repo-url> ai-email-filter
+   cd ai-email-filter
+   
+   # Configure Env
+   cp .env.example .env
+   nano .env
+   # Set: TENANT_ID, CLIENT_ID, SECRETS...
+   # Set: LLM_API_URL=http://192.168.1.111:8081/classify
+   # Set: ENABLE_TENANT_DISCOVERY=false (for initial testing)
+   
+   # Install
+   chmod +x scripts/setup.sh
+   ./scripts/setup.sh
+   ```
+
+2. **Install Systemd Services:**
+   ```bash
+   # Copy example units
+   cp ai-email-api.service.example /etc/systemd/system/ai-email-api.service
+   cp ai-email-poller.service.example /etc/systemd/system/ai-email-poller.service
+   
+   # Edit them if your paths differ from defaults (/opt/ai-email-filter/.venv/...)
+   nano /etc/systemd/system/ai-email-api.service
+   nano /etc/systemd/system/ai-email-poller.service
+   
+   # Enable & Start
+   systemctl daemon-reload
+   systemctl enable --now ai-email-api ai-email-poller
+   ```
+
+3. **Verify:**
+   ```bash
+   journalctl -u ai-email-poller -f
+   # Should see: "AI Email Poller started..."
+   ```
+
+## 8. Directory & Data Considerations
 
 - `data/quarantine.db` – SQLite database; back up regularly. Safe to delete only if you accept losing history.
 - `state.json` – Holds Graph delta tokens + cached folder IDs per user. Deleting forces full sync (longer first run).
@@ -138,7 +204,7 @@ Steps:
 - `llm-api/` – Deployed separately (optionally under its own systemd service). Ensure `LLM_API_URL` points to it.
 - Logs – All services emit structured stdout logs via `services.logging_utils` (12-factor). Use `LOG_FORMAT=json` for ingestion into centralized pipelines; systemd/journald captures stdout automatically.
 
-## 10. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | Action |
 | ------- | ------ |
@@ -152,7 +218,7 @@ Steps:
 | `AADSTS900023` / invalid_request | `TENANT_ID` or `CLIENT_ID` swapped or malformed. Re-check values. |
 | Only polling one user? | Check if `ENABLE_TENANT_DISCOVERY=false` is set in `.env`. |
 
-## 11. Validation Checklist
+## 10. Validation Checklist
 
 After deployment:
 1. **API health** – `curl http://192.168.1.110:8000/health` returns `{"status":"ok"}`.
@@ -163,7 +229,7 @@ After deployment:
 6. **Failure simulation** – Stop `llm-api` service to ensure poller logs timeouts/fail-closed, then restart to confirm recovery.
 7. **Reboot test** – Reboot both containers and confirm `ai-email-api`, `ai-email-poller`, and `llm-api` all come back (`systemctl status ...`).
 
-## 12. Future Enhancements
+## 11. Future Enhancements
 
 - Full-body message retrieval and attachment inspection.
 - URL reputation heuristics & enrichment.

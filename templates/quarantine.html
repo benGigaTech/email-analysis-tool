@@ -168,15 +168,18 @@
           <td>
             {% if e.released %}
               <span class="released">Released</span>
-            {% else %}
+            {% elif e.moved %}
               <span class="not-released">Quarantined</span>
+            {% else %}
+              <span class="badge badge-low">Allowed</span>
             {% endif %}
           </td>
           <td>
             {% if e.released %}
               <button class="btn btn-disabled" disabled>Released</button>
+            {% elif not e.moved %}
+              <button class="btn btn-disabled" disabled>No Action</button>
             {% else %}
-              <!-- Always allow Release for unreleased events, regardless of moved flag -->
               <a class="btn btn-release" href="/admin/quarantine/{{ e.id }}/release">
                 Release
               </a>
