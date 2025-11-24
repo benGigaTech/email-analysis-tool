@@ -60,9 +60,10 @@ async def admin_quarantine(request: Request, limit: int = 50):
     HTML dashboard: show quarantine events in a table.
     """
     events = list_quarantine_events(limit)
+    stats = get_dashboard_stats()
     return templates.TemplateResponse(
         "quarantine.html",
-        {"request": request, "events": events},
+        {"request": request, "events": events, "stats": stats},
     )
 
 
