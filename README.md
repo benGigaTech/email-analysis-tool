@@ -142,7 +142,7 @@ Steps:
 
 | Symptom | Action |
 | ------- | ------ |
-| Poller logs `403 Forbidden /users` | Ensure app registration has `User.Read.All` or set `MONITORED_USERS` fallback. |
+| Poller logs `403 Forbidden /users` | Ensure app registration has `User.Read.All` or set `ENABLE_TENANT_DISCOVERY=false` and use `MONITORED_USERS` fallback. |
 | LLM timeout | Verify `LLM_API_URL`, Ollama availability, and network reachability between containers. |
 | Dashboard empty | Confirm poller is running, `data/quarantine.db` exists, check `services.db` logs. |
 | Emails not released | Ensure Graph app has `Mail.ReadWrite` and that `get_inbox_folder_id()` returns valid folder. |
@@ -150,6 +150,7 @@ Steps:
 | `status=203/EXEC` in systemd | ExecStart points at missing interpreter (e.g., `/venv/` instead of `.venv/`). Update paths and `systemctl daemon-reload`. |
 | `AADSTS90002` / tenant not found | `TENANT_ID` in `.env` is wrong. Copy the directory ID from Azure AD overview. |
 | `AADSTS900023` / invalid_request | `TENANT_ID` or `CLIENT_ID` swapped or malformed. Re-check values. |
+| Only polling one user? | Check if `ENABLE_TENANT_DISCOVERY=false` is set in `.env`. |
 
 ## 11. Validation Checklist
 
