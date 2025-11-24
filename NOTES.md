@@ -8,6 +8,10 @@
 - **Dashboard UI Fixes**:
   - Differentiated "Quarantined" (moved) vs "Allowed" (safe, not moved) vs "Released".
   - Disabled "Release" button for emails that were never quarantined.
+- **Security & Stats (Phase 1)**:
+  - Added **Statistics Widget** to dashboard (Total, Quarantined, Released, Allowed).
+  - Implemented **HTTP Basic Authentication** for `/admin` routes.
+  - Updated `.env.example` with `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
 - **Deployment Documentation**:
   - Added comprehensive `Section 7` in README for Proxmox LXC deployment.
   - Documented `ct-llm` (Ollama) and `ct-ai-filter` (Poller) setup explicitly.
@@ -200,23 +204,17 @@ We are **ready to continue** with:
 
 ## ⭐ Proposed Next Steps (Pick any when restarting)
 
-### **1. Statistics Widget (Dashboard)**
-Add a summary bar at the top:
-- "Emails Processed Today"
-- "Quarantined / Released" count
-- "Average Risk Score"
-
-### **2. Search & Filter (Dashboard)**
+### **1. Search & Filter (Dashboard)**
 Add a text box to filter rows by Subject or Sender.
 
-### **3. Dashboard Authentication**
-Protect the admin panel with Basic Auth or Azure AD.
-
-### **4. Full-body email analysis**
+### **2. Full-body email analysis**
 Fetch full email MIME/HTML content (not just bodyPreview) for better LLM accuracy.
 
-### **5. URL reputation heuristics layer**
+### **3. URL reputation heuristics layer**
 Add suspicious TLD detection, IP-based URL detection, etc.
+
+### **4. Attachment awareness**
+Detect dangerous file extensions or names.
 
 ---
 
@@ -232,10 +230,10 @@ If you paste the following block into a new conversation, I will automatically u
 
 - **Parallel Polling**: `services/poller.py` processes 5 emails concurrently via `asyncio.Semaphore`.
 - **Local LLM**: Llama 3.1 8B running on a separate container via Ollama.
-- **Dashboard**: FastAPI + Jinja2 admin panel with correct status labels (Allowed/Quarantined/Released).
+- **Dashboard**: FastAPI + Jinja2 admin panel with **Statistics**, **Basic Auth**, and correct status labels.
 - **Deployment**: Fully documented `systemd` setup in README.
 
 **Current Status:**
 - Poller is fast and stable.
-- Dashboard accurately reflects email state.
-- Ready to add **Statistics Widget**, **Search**, and **Authentication**.
+- Dashboard is secured and shows real-time metrics.
+- Ready to add **Search & Filter** and **Full-body Analysis**.

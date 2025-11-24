@@ -17,7 +17,7 @@ Key components:
 - **Poller container (CT100)** – Async loop invoking Microsoft Graph delta queries, extracting URLs from email bodies, classifying messages via LLM, and moving risky email into AI-Quarantine.
 - **LLM container** – FastAPI wrapper around local Ollama Llama 3.1 8B for deterministic JSON threat scoring.
 - **SQLite logging** – `data/quarantine.db` stores every decision, release status, timestamps, and user metadata.
-- **Admin dashboard** – FastAPI + Jinja2 template served at `/admin/quarantine` with release workflow.
+- **Admin dashboard** – FastAPI + Jinja2 template served at `/admin/quarantine` with statistics, Basic Auth, and release workflow.
 - **Systemd services** – `ai-email-poller.service` and `ai-email-api.service` keep poller and dashboard running on boot.
 
 ## 2. Repository Layout
@@ -83,6 +83,7 @@ See `.env.example` for documented values:
 - `MONITORED_USER` (legacy endpoints) and `MONITORED_USERS` fallback list
 - `ENABLE_TENANT_DISCOVERY` ("true"/"false") to toggle between full tenant scanning and single-mailbox testing
 - `ORG_DOMAIN`, `RISK_THRESHOLD`, `LLM_API_URL`, optional `QUARANTINE_FOLDER_ID`
+- `ADMIN_USERNAME`, `ADMIN_PASSWORD` for dashboard Basic Auth
 - `LOG_LEVEL` (DEBUG/INFO/WARNING/ERROR) and `LOG_FORMAT` (`plain` or `json`) for stdout logging
 
 Place `.env` at repo root so `load_dotenv()` in services can pick it up.
@@ -225,8 +226,9 @@ After deployment:
 2. **LLM health** – `curl http://192.168.1.111:8081/docs` loads and `curl http://192.168.1.111:8081/classify -d '{...}'` returns JSON.
 3. **Poller logs** – `journalctl -u ai-email-poller -f` shows user discovery and message processing without exceptions.
 4. **End-to-end email** – Send a test mail to monitored mailbox; confirm entry in `/admin/quarantine` and log row in `data/quarantine.db`.
-5. **Release flow** – Click "Release" in dashboard and verify message moves back plus DB `released=1`.
-6. **Failure simulation** – Stop `llm-api` service to ensure poller logs timeouts/fail-closed, then restart to confirm recovery.
+5. **Dashboard Check** – Visit `/admin/quarantine`, login with Basic Auth credentials, and verify the "Total Processed" stat increments.
+6. **Release flow** – Click "Release" in dashboard and verify message moves back plus DB `released=1`.
+7. **Failure simulation** – Stop `llm-api` service to ensure poller logs timeouts/fail-closed, then restart to confirm recovery.
 7. **Reboot test** – Reboot both containers and confirm `ai-email-api`, `ai-email-poller`, and `llm-api` all come back (`systemctl status ...`).
 
 ## 11. Future Enhancements
