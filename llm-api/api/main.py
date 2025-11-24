@@ -84,10 +84,10 @@ async def classify_email(email: dict):
     )
 
     payload = {
-        "model": "llama3.1:8b",
+        "model": "phi3:mini",
         "prompt": prompt,
-        "temperature": 0.0,
-        "num_predict": 220,
+        "temperature": 0.1,
+        "num_predict": 128,
         "stream": False,
     }
 
@@ -99,7 +99,21 @@ async def classify_email(email: dict):
 
     # Try to parse JSON from the response
     try:
-        result = json.loads(content)
+        # 1. Strip markdown code blocks if present
+        clean_content = content.strip()
+        if "```json" in clean_content:
+            clean_content = clean_content.split("```json")[1].split("```")[0]
+        elif "```" in clean_content:
+            clean_content = clean_content.split("```")[1].split("```")[0]
+        
+        # 2. Find the first '{' and last '}' to isolate the JSON object
+        start = clean_content.find("{")
+        end = clean_content.rfind("}")
+        
+        if start != -1 and end != -1:
+            clean_content = clean_content[start : end + 1]
+            
+        result = json.loads(clean_content)
 
         # Basic sanity normalization
         classification = (result.get("classification") or "spam").lower()

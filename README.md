@@ -20,7 +20,7 @@ graph TD
 ### Key Components
 - **Poller (`services/poller.py`)**: Async service that monitors mailboxes using Graph Delta queries. It processes emails in parallel (semaphores) to maximize throughput.
 - **URL Engine (`services/url_analysis.py`)**: Static analysis layer that flags suspicious TLDs (`.xyz`, `.top`) and IP-based URLs.
-- **LLM Classifier (`llm-api/`)**: A dedicated API wrapper around Ollama that enforces strict JSON output from Llama 3.1 for deterministic scoring.
+- **LLM Classifier (`llm-api/`)**: A dedicated API wrapper around Ollama that enforces strict JSON output from **Phi-3 Mini** (optimized for CPU speed) for deterministic scoring.
 - **Dashboard (`api/main.py`)**: specific web interface for reviewing decisions, searching logs, and releasing false positives.
 
 ---
@@ -42,7 +42,7 @@ graph TD
 
 ### Prerequisites
 - **Python 3.10+**
-- **Ollama** running `llama3.1:8b`
+- **Ollama** running `phi3:mini`
 - **Microsoft Graph App** (Client ID, Tenant ID, Secret) with `Mail.ReadWrite` and `User.Read.All`.
 
 ### Installation
@@ -83,7 +83,7 @@ Recommended setup: **Two LXC Containers** (separating logic from heavy AI comput
 - **Role**: Runs Ollama and the LLM API wrapper.
 - **Setup**:
   1. Install Ollama: `curl -fsSL https://ollama.com/install.sh | sh`
-  2. Pull Model: `ollama pull llama3.1:8b`
+  2. Pull Model: `ollama pull phi3:mini`
   3. Copy `llm-api/` folder to `/opt/llm-api`.
   4. Install dependencies (`fastapi`, `uvicorn`, `httpx`) in a venv.
   5. Create systemd service (see `ai-email-api.service.example` but point to `llm-api`).

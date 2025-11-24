@@ -38,9 +38,9 @@ async def classify_with_llama(email: dict) -> dict:
 
     # Prepare body text for LLM (truncated)
     if body_content:
-        # Truncate to ~4k chars to prevent LLM timeouts on CPU-only inference
-        if len(body_content) > 4000:
-            body_text = body_content[:4000] + "\n...[TRUNCATED]..."
+        # Truncate to ~2k chars to improve CPU inference speed
+        if len(body_content) > 2000:
+            body_text = body_content[:2000] + "\n...[TRUNCATED]..."
         else:
             body_text = body_content
     else:
