@@ -1,6 +1,10 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
+import os
+import secrets
+from dotenv import load_dotenv
 
 from services.graph_client import (
     list_recent_messages,
@@ -18,6 +22,29 @@ from services.logging_utils import get_logger
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 logger = get_logger(__name__)
+load_dotenv()
+
+security = HTTPBasic()
+
+ADMIN_USER = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASS = os.getenv("ADMIN_PASSWORD", "admin")
+
+
+def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
+    """
+    Verify Basic Auth credentials.
+    Using secrets.compare_digest to prevent timing attacks.
+    """
+    correct_username = secrets.compare_digest(credentials.username, ADMIN_USER)
+    correct_password = secrets.compare_digest(credentials.password, ADMIN_PASS)
+    
+    if not (correct_username and correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
 
 
 @app.get("/health")
@@ -55,24 +82,34 @@ async def quarantine_json(limit: int = 50):
 # ---------- Admin HTML Dashboard ----------
 
 @app.get("/admin/quarantine", response_class=HTMLResponse)
-async def admin_quarantine(request: Request, limit: int = 50):
+async def admin_quarantine(
+    request: Request, 
+    limit: int = 50,
+    username: str = Depends(get_current_username)
+):
     """
     HTML dashboard: show quarantine events in a table.
+    Protected by Basic Auth.
     """
     events = list_quarantine_events(limit)
     stats = get_dashboard_stats()
     return templates.TemplateResponse(
         "quarantine.html",
-        {"request": request, "events": events, "stats": stats},
+        {"request": request, "events": events, "stats": stats, "user": username},
     )
 
 
 @app.get("/admin/quarantine/{event_id}/release")
-async def admin_release(event_id: int, request: Request):
+async def admin_release(
+    event_id: int, 
+    request: Request,
+    username: str = Depends(get_current_username)
+):
     """
     Release an email from AI-Quarantine back to Inbox.
+    Protected by Basic Auth.
     """
-    logger.info("release requested", extra={"event_id": event_id})
+    logger.info("release requested", extra={"event_id": event_id, "admin": username})
 
     # Find event in DB
     event = get_event_by_id(event_id)
