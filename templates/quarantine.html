@@ -106,6 +106,13 @@
       cursor: pointer;
       font-size: 0.8rem;
     }
+    .toolbar input[type="text"] {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.4rem;
+        border: 1px solid #d1d5db;
+        font-size: 0.8rem;
+        min-width: 200px;
+    }
   </style>
 </head>
 <body>
@@ -135,7 +142,11 @@
   </div>
   <div class="toolbar">
     <form method="get" action="/admin/quarantine">
-      <button type="submit">Refresh</button>
+      <input type="text" name="q" placeholder="Search subject or sender..." value="{{ q or '' }}">
+      <button type="submit">Search</button>
+      {% if q %}
+        <a href="/admin/quarantine" class="btn" style="background: #e5e7eb; color: #374151; text-decoration: none;">Clear</a>
+      {% endif %}
     </form>
   </div>
 

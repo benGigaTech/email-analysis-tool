@@ -84,21 +84,36 @@ def log_quarantine_event(user_email: str, email: dict, score: dict, moved: bool)
         conn.close()
 
 
-def list_quarantine_events(limit: int = 100):
+def list_quarantine_events(limit: int = 100, q: str | None = None):
     """Return recent quarantine events as a list of dicts."""
     with _db_lock:
         conn = sqlite3.connect(DB_PATH)
         cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT id, message_id, sender, subject, received_datetime, risk_score,
-                   classification, reasons, moved, created_at, released, released_at, user_email
-            FROM quarantine_events
-            ORDER BY created_at DESC
-            LIMIT ?
-            """,
-            (limit,),
-        )
+        
+        if q:
+            search_term = f"%{q}%"
+            cur.execute(
+                """
+                SELECT id, message_id, sender, subject, received_datetime, risk_score,
+                       classification, reasons, moved, created_at, released, released_at, user_email
+                FROM quarantine_events
+                WHERE sender LIKE ? OR subject LIKE ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (search_term, search_term, limit),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, message_id, sender, subject, received_datetime, risk_score,
+                       classification, reasons, moved, created_at, released, released_at, user_email
+                FROM quarantine_events
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
         rows = cur.fetchall()
         conn.close()
 

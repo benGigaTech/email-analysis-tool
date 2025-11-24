@@ -85,17 +85,18 @@ async def quarantine_json(limit: int = 50):
 async def admin_quarantine(
     request: Request, 
     limit: int = 50,
+    q: str = None,
     username: str = Depends(get_current_username)
 ):
     """
     HTML dashboard: show quarantine events in a table.
     Protected by Basic Auth.
     """
-    events = list_quarantine_events(limit)
+    events = list_quarantine_events(limit, q=q)
     stats = get_dashboard_stats()
     return templates.TemplateResponse(
         "quarantine.html",
-        {"request": request, "events": events, "stats": stats, "user": username},
+        {"request": request, "events": events, "stats": stats, "user": username, "q": q},
     )
 
 
