@@ -91,7 +91,7 @@ async def classify_email(email: dict):
         "stream": False,
     }
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         r = await client.post(OLLAMA_URL, json=payload)
         r.raise_for_status()
         data = r.json()

@@ -208,10 +208,10 @@ We are **ready to continue** with:
 
 ## ⭐ Proposed Next Steps (Pick any when restarting)
 
-### **1. URL reputation heuristics layer (Phase 3)**
-Add suspicious TLD detection, IP-based URL detection, etc.
+### **1. Attachment awareness**
+Detect dangerous file extensions or names.
 
-### **2. Attachment awareness**
+### **2. Policy Engine**
 Detect dangerous file extensions or names.
 
 ---
