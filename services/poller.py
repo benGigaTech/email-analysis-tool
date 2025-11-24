@@ -19,8 +19,106 @@ load_dotenv()
 RISK_THRESHOLD = int(os.getenv("RISK_THRESHOLD", "60"))
 # If set, we'll treat messages from *@ORG_DOMAIN as internal (not auto-quarantined)
 ORG_DOMAIN = os.getenv("ORG_DOMAIN")  # e.g. "yourcompany.com"
+# Concurrency limit for processing messages per user
+MAX_CONCURRENT_MSGS = 5
 
 logger = get_logger(__name__)
+
+async def process_single_message(user_email: str, m: dict, quarantine_folder_id: str, semaphore: asyncio.Semaphore):
+    """
+    Process a single message with concurrency control.
+    """
+    async with semaphore:
+        try:
+            subject = m.get("subject")
+            logger.info(
+                "processing message",
+                extra={
+                    "user_email": user_email,
+                    "message_id": m.get("id"),
+                    "subject": subject,
+                },
+            )
+
+            # Classify with local Llama
+            score = await classify_with_llama(m)
+            risk = score.get("risk_score", 0) or 0
+            classification = (score.get("classification") or "unknown").lower()
+
+            # Normalize classification
+            if classification not in {"safe", "spam", "phishing", "malicious"}:
+                classification = "spam"  # fail-closed-ish but not too harsh
+
+            # Determine if sender is external
+            from_addr = (
+                (m.get("from", {}) or {})
+                .get("emailAddress", {})
+                .get("address", "")
+            )
+            if ORG_DOMAIN:
+                is_external = not from_addr.lower().endswith(ORG_DOMAIN.lower())
+            else:
+                # If ORG_DOMAIN not set, treat everything as external for now
+                is_external = True
+
+            # NEW: decision logic
+            moved = False
+            quarantine_reason = None
+
+            # We never quarantine "safe" emails, regardless of risk_score
+            if classification == "safe":
+                quarantine = False
+                quarantine_reason = "classification=safe"
+            else:
+                # For spam: use threshold
+                if classification == "spam":
+                    quarantine = is_external and risk >= RISK_THRESHOLD
+                    quarantine_reason = f"spam & risk>={RISK_THRESHOLD}"
+                # For phishing/malicious: more aggressive
+                elif classification in {"phishing", "malicious"}:
+                    # Even if risk is low, treat as dangerous
+                    quarantine = is_external and (risk >= (RISK_THRESHOLD - 10))
+                    quarantine_reason = f"{classification} & risk>={RISK_THRESHOLD - 10}"
+                else:
+                    quarantine = False
+                    quarantine_reason = "unknown classification"
+
+            if quarantine:
+                await move_message(user_email, m["id"], quarantine_folder_id)
+                moved = True
+                logger.warning(
+                    "moved message to AI-Quarantine",
+                    extra={
+                        "user_email": user_email,
+                        "message_id": m.get("id"),
+                        "risk_score": risk,
+                        "classification": classification,
+                        "is_external": is_external,
+                        "rule": quarantine_reason,
+                    },
+                )
+            else:
+                logger.info(
+                    "left message in inbox",
+                    extra={
+                        "user_email": user_email,
+                        "message_id": m.get("id"),
+                        "risk_score": risk,
+                        "classification": classification,
+                        "is_external": is_external,
+                        "rule": quarantine_reason,
+                    },
+                )
+
+            # Log decision in SQLite, tagged with this mailbox
+            log_quarantine_event(user_email, m, score, moved)
+
+        except Exception:
+            logger.exception(
+                "error processing message",
+                extra={"user_email": user_email, "message_id": m.get("id")},
+            )
+
 
 async def process_user(user_id_or_email: str):
     """
@@ -39,92 +137,22 @@ async def process_user(user_id_or_email: str):
         extra={"user_email": user_email},
     )
 
+    if not messages:
+        return
+
     # Ensure / cache quarantine folder for this mailbox
     quarantine_folder_id = await ensure_quarantine_folder(user_id_or_email)
 
-    for m in messages:
-        subject = m.get("subject")
-        logger.info(
-            "processing message",
-            extra={
-                "user_email": user_email,
-                "message_id": m.get("id"),
-                "subject": subject,
-            },
-        )
+    # Limit concurrent processing to avoid overwhelming LLM or Graph
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_MSGS)
+    
+    tasks = [
+        process_single_message(user_email, m, quarantine_folder_id, semaphore)
+        for m in messages
+    ]
+    
+    await asyncio.gather(*tasks)
 
-        # Classify with local Llama
-        score = await classify_with_llama(m)
-        risk = score.get("risk_score", 0) or 0
-        classification = (score.get("classification") or "unknown").lower()
-
-        # Normalize classification
-        if classification not in {"safe", "spam", "phishing", "malicious"}:
-            classification = "spam"  # fail-closed-ish but not too harsh
-
-        # Determine if sender is external
-        from_addr = (
-            (m.get("from", {}) or {})
-            .get("emailAddress", {})
-            .get("address", "")
-        )
-        if ORG_DOMAIN:
-            is_external = not from_addr.lower().endswith(ORG_DOMAIN.lower())
-        else:
-            # If ORG_DOMAIN not set, treat everything as external for now
-            is_external = True
-
-        # NEW: decision logic
-        moved = False
-        quarantine_reason = None
-
-        # We never quarantine "safe" emails, regardless of risk_score
-        if classification == "safe":
-            quarantine = False
-            quarantine_reason = "classification=safe"
-        else:
-            # For spam: use threshold
-            if classification == "spam":
-                quarantine = is_external and risk >= RISK_THRESHOLD
-                quarantine_reason = f"spam & risk>={RISK_THRESHOLD}"
-            # For phishing/malicious: more aggressive
-            elif classification in {"phishing", "malicious"}:
-                # Even if risk is low, treat as dangerous
-                quarantine = is_external and (risk >= (RISK_THRESHOLD - 10))
-                quarantine_reason = f"{classification} & risk>={RISK_THRESHOLD - 10}"
-            else:
-                quarantine = False
-                quarantine_reason = "unknown classification"
-
-        if quarantine:
-            await move_message(user_id_or_email, m["id"], quarantine_folder_id)
-            moved = True
-            logger.warning(
-                "moved message to AI-Quarantine",
-                extra={
-                    "user_email": user_email,
-                    "message_id": m.get("id"),
-                    "risk_score": risk,
-                    "classification": classification,
-                    "is_external": is_external,
-                    "rule": quarantine_reason,
-                },
-            )
-        else:
-            logger.info(
-                "left message in inbox",
-                extra={
-                    "user_email": user_email,
-                    "message_id": m.get("id"),
-                    "risk_score": risk,
-                    "classification": classification,
-                    "is_external": is_external,
-                    "rule": quarantine_reason,
-                },
-            )
-
-        # Log decision in SQLite, tagged with this mailbox
-        log_quarantine_event(user_email, m, score, moved)
 
 async def main():
     # Ensure DB schema exists
