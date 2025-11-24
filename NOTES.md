@@ -2,48 +2,37 @@
 
 ### _(Up to the point where we left off — ready for continuation in a new chat)_
 
-## 📅 Latest Progress (Nov 21, 2025)
+## 📅 Latest Progress (Nov 24, 2025)
 
-- Completed full Proxmox deployment with two LXCs:
-  - `ct-ai-filter` (192.168.1.110) hosting poller + FastAPI dashboard.
-  - `ct-llm` (192.168.1.111) running Ollama + FastAPI LLM wrapper.
-- Added 12-factor stdout logging (LOG_LEVEL/LOG_FORMAT) across poller/API, documented in README.
-- Created reproducible setup scripts/documentation (scripts/setup.sh, README updates).
-- Hardened `ensure_quarantine_folder` to handle Graph 409 conflicts by looking up existing folder IDs.
-- Validated services via CLI (health endpoints, curl classify test, journalctl tail) and confirmed release workflow.
-- Repository pushed to GitHub (`main`), containers now update via `git pull` + `systemctl restart` steps documented in README.
+- **Parallel Processing**: Refactored `services/poller.py` to use `asyncio.gather` with a semaphore (`MAX_CONCURRENT_MSGS=5`). This solved the "slow processing" issue while respecting LLM resource limits.
+- **Dashboard UI Fixes**:
+  - Differentiated "Quarantined" (moved) vs "Allowed" (safe, not moved) vs "Released".
+  - Disabled "Release" button for emails that were never quarantined.
+- **Deployment Documentation**:
+  - Added comprehensive `Section 7` in README for Proxmox LXC deployment.
+  - Documented `ct-llm` (Ollama) and `ct-ai-filter` (Poller) setup explicitly.
+  - Fixed `systemd` path issues (pointing to `.venv` correctly).
+- **Configuration**: Added `ENABLE_TENANT_DISCOVERY` to toggle between full tenant scan and single-mailbox testing.
 
 ## 🏗️ **Architecture Overview**
 
 We deployed a **self-hosted AI-powered email filtering system** integrated with Microsoft 365 using:
 
 - **Proxmox container (CT100)** – Poller + API + Dashboard
-    
 - **Separate LLM container** – Local Llama 3.1 8B running via Ollama
-    
 - **Microsoft Graph API** – For polling messages and moving emails
-    
 - **SQLite** – Local logging of AI decisions
-    
 - **FastAPI + Jinja2** – Web dashboard
-    
 - **Systemd services** – For poller and dashboard
-    
 
 The system works by:
 
-1. Polling the mailbox with **Graph delta queries**
-    
+1. Polling the mailbox with **Graph delta queries** (Parallelized)
 2. Sending new emails to a local Llama classifier
-    
 3. Scoring each email (safe/spam/phishing/malicious)
-    
 4. Moving suspicious ones to **AI-Quarantine**
-    
 5. Storing a log entry for each email in SQLite
-    
 6. Providing an admin dashboard for reviewing and releasing emails
-    
 
 ---
 
@@ -56,49 +45,33 @@ The system works by:
 ### ✔ Microsoft Graph integration
 
 Includes:
-
 - `get_delta_messages()` – uses `/delta` queries
-    
 - `move_message(message_id, folder_id)`
-    
 - `get_inbox_folder_id()`
-    
+
+### ✔ Parallelized Polling
+
+- Uses `asyncio.Semaphore(5)` to process messages concurrently.
+- Handles errors per-message to prevent crash loops.
 
 ### ✔ Delta-based polling using a `state.json`
 
 Ensures:
-
 - Only new/changed emails are processed
-    
 - No re-processing of old mails
-    
 
 ### ✔ Working poller loop (asyncio + systemd)
 
 The poller:
-
 - Runs every 60 seconds
-    
 - Gets new mail
-    
-- Classifies each with Llama
-    
+- Classifies each with Llama (in parallel)
 - Moves risky ones to quarantine
-    
 - Logs each event to SQLite
-    
 - Runs permanently under systemd
-    
 
 Poller entrypoint:
-
 `python -m services.poller`
-
-And uses:
-
-`Environment=PYTHONUNBUFFERED=1`
-
-so logs show up in `journalctl`.
 
 ---
 
@@ -107,7 +80,6 @@ so logs show up in `journalctl`.
 ### ✔ Ollama running Llama 3.1 8B (local)
 
 With full REST access via:
-
 `http://127.0.0.1:11434/api/generate`
 
 ### ✔ FastAPI wrapper API (`/classify`)
@@ -117,29 +89,12 @@ Runs separately on port **8081** via systemd or manually.
 ### ✔ Improved prompt
 
 Classifier now returns strict JSON:
-
 `{   "risk_score": 0-100,   "classification": "safe" | "spam" | "phishing" | "malicious",   "reasons": [...] }`
 
 ### ✔ URL-aware classification
 
 Email body preview is scanned for URLs and passed into the model:
-
 `urls: [...]`
-
-Prompt includes:
-
-- URL list
-    
-- Sender
-    
-- Subject
-    
-- Body preview
-    
-- Threat reasoning guidelines
-    
-
-If model returns bad JSON → fail-closed as high-risk phishing.
 
 ---
 
@@ -158,40 +113,24 @@ Basic URL regex extraction + normalization.
 Table: `quarantine_events`
 
 Fields include:
-
 - message_id
-    
 - sender
-    
 - subject
-    
 - received_datetime
-    
 - risk_score
-    
 - classification
-    
 - reasons
-    
 - moved (bool)
-    
 - released (bool)
-    
 - timestamps
-    
 
 ### ✔ Added DB helpers
 
 - `init_db()`
-    
 - `log_quarantine_event()`
-    
 - `list_quarantine_events()`
-    
 - `get_event_by_id()`
-    
 - `mark_released(event_id)`
-    
 
 ---
 
@@ -200,17 +139,13 @@ Fields include:
 ### ✔ AI-Quarantine folder
 
 Created via Graph API and folder ID stored in `.env` as:
-
 `QUARANTINE_FOLDER_ID=xxxx`
 
 ### ✔ Poller uses risk threshold (>= 60)
 
 If high risk:
-
 - Move to AI-Quarantine
-    
 - Log entry created
-    
 
 ### ✔ Release flow
 
@@ -227,25 +162,17 @@ Admin clicks "Release" → message moves back to Inbox.
 ### ✔ Features:
 
 - See all processed emails
-    
 - Risk badges
-    
-- Classification
-    
+- Classification (Safe/Spam/Phishing)
+- Status (Allowed/Quarantined/Released)
 - URLs (as reasons)
-    
-- Release button
-    
+- Release button (disabled if allowed)
 - Refresh button
-    
-- Released emails display in green
-    
 
 ### ✔ Systemd-managed API service
 
-`ai-email-api.service`  
+`ai-email-api.service`
 Runs uvicorn:
-
 `uvicorn api.main:app --host 0.0.0.0 --port 8000`
 
 ### ✔ Clean HTML template (`quarantine.html`)
@@ -258,88 +185,38 @@ Styled, clickable, reliable.
 
 **Inbound email → Graph delta → local classification → quarantine → dashboard → release**
 
-Everything from raw email ingestion through human review is functioning.
+Everything from raw email ingestion through human review is functioning reliably in production testing.
 
 ---
 
 # 📌 **Where We Stopped (exact handoff point)**
 
 We ended after:
-
-- Confirming the dashboard fully works
-    
-- Confirming the Release button works
-    
-- Confirming the poller is stable
-    
-- Integrating URL reasoning
-    
-- Llama prompt + API improvements
-    
-- Systemd services for both poller + API
-    
-- Dashboard rendered and functioning
-    
+- **Successfully validating the parallel poller** in a live environment.
+- **Fixing dashboard UI bugs** where safe emails were labeled "Quarantined".
+- **Updating README** with precise deployment steps for Proxmox.
 
 We are **ready to continue** with:
 
 ## ⭐ Proposed Next Steps (Pick any when restarting)
 
-### **1. Full-body email analysis (not just bodyPreview)**
+### **1. Statistics Widget (Dashboard)**
+Add a summary bar at the top:
+- "Emails Processed Today"
+- "Quarantined / Released" count
+- "Average Risk Score"
 
-Fetch full email HTML/text with another Graph call and feed that to the model.
+### **2. Search & Filter (Dashboard)**
+Add a text box to filter rows by Subject or Sender.
 
-### **2. URL reputation heuristics layer**
+### **3. Dashboard Authentication**
+Protect the admin panel with Basic Auth or Azure AD.
 
-Add:
+### **4. Full-body email analysis**
+Fetch full email MIME/HTML content (not just bodyPreview) for better LLM accuracy.
 
-- Suspicious TLD detection
-    
-- IP-based URL detection
-    
-- Punycode domains
-    
-- Domain age checks
-    
-- "Match sender vs domain" checks
-    
-
-### **3. Attachment awareness**
-
-Detect:
-
-- File types
-    
-- Dangerous extensions
-    
-- Suspicious names
-    
-- Feed metadata into model
-    
-
-### **4. Dashboard authentication**
-
-Add:
-
-- Simple Basic Auth
-    
-- or Azure AD login (real security)
-    
-
-### **5. Variable thresholds + policy engine**
-
-Per-user or global:
-
-- RISK_THRESHOLD
-    
-- Quarantine or allow rules
-    
-- URL-only risk bumping
-    
-
-### **6. Multi-user or multi-tenant support**
-
-Scaling beyond one mailbox.
+### **5. URL reputation heuristics layer**
+Add suspicious TLD detection, IP-based URL detection, etc.
 
 ---
 
@@ -351,34 +228,14 @@ If you paste the following block into a new conversation, I will automatically u
 
 ## 📌 **Paste This in a New Chat to Resume**
 
-**We built a fully working AI-powered email filter system consisting of:**
+**We have a production-ready AI email filter running on Proxmox (LXC) with:**
 
-- A poller container (CT100) using Microsoft Graph delta queries
-    
-- A local Llama 3.1 8B inference container via Ollama
-    
-- A FastAPI LLM wrapper (`/classify`)
-    
-- A SQLite logging layer (`quarantine_events`)
-    
-- A delta-based poller that:
-    
-    - fetches new messages
-        
-    - extracts URLs from bodies
-        
-    - sends them to the LLM
-        
-    - moves high-risk email to an AI-Quarantine folder
-        
-    - logs everything
-        
-- A FastAPI admin dashboard (`/admin/quarantine`)
-    
-- A working release flow that moves emails back to Inbox
-    
-- Both poller and API run under systemd
-    
+- **Parallel Polling**: `services/poller.py` processes 5 emails concurrently via `asyncio.Semaphore`.
+- **Local LLM**: Llama 3.1 8B running on a separate container via Ollama.
+- **Dashboard**: FastAPI + Jinja2 admin panel with correct status labels (Allowed/Quarantined/Released).
+- **Deployment**: Fully documented `systemd` setup in README.
 
-We stopped right after confirming the dashboard works and release works.  
-We are ready for next steps like full-body analysis, URL heuristics, attachment analysis, auth for the dashboard, etc.
+**Current Status:**
+- Poller is fast and stable.
+- Dashboard accurately reflects email state.
+- Ready to add **Statistics Widget**, **Search**, and **Authentication**.

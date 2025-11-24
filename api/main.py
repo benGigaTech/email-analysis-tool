@@ -11,6 +11,7 @@ from services.db import (
     list_quarantine_events,
     get_event_by_id,
     mark_released,
+    get_dashboard_stats,
 )
 from services.logging_utils import get_logger
 

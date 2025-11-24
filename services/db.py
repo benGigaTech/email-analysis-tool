@@ -177,3 +177,41 @@ def mark_released(event_id: int):
         )
         conn.commit()
         conn.close()
+
+
+def get_dashboard_stats():
+    """
+    Get simple statistics for the dashboard:
+    - Total emails processed
+    - Quarantined
+    - Released
+    """
+    with _db_lock:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        
+        cur.execute(
+            """
+            SELECT 
+                COUNT(*) as total,
+                SUM(moved) as quarantined,
+                SUM(released) as released
+            FROM quarantine_events
+            """
+        )
+        row = cur.fetchone()
+        conn.close()
+
+    total = row[0] or 0
+    quarantined = row[1] or 0
+    released = row[2] or 0
+    
+    # Calculate "Allowed" (safe)
+    allowed = total - quarantined
+
+    return {
+        "total": total,
+        "quarantined": quarantined,
+        "released": released,
+        "allowed": allowed
+    }

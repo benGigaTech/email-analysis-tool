@@ -110,6 +110,26 @@
 </head>
 <body>
   <h1>AI Email Quarantine</h1>
+  
+  <div class="stats-bar">
+    <div class="stat">
+      <div class="stat-label">Total Processed</div>
+      <div class="stat-value">{{ stats.total }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Quarantined</div>
+      <div class="stat-value text-red">{{ stats.quarantined }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Released</div>
+      <div class="stat-value text-green">{{ stats.released }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Allowed</div>
+      <div class="stat-value text-blue">{{ stats.allowed }}</div>
+    </div>
+  </div>
+
   <div class="meta">
     Showing latest {{ events|length }} events.
   </div>
