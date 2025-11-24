@@ -24,6 +24,9 @@ async def get_all_mail_users():
     token = await get_token()
     headers = {"Authorization": f"Bearer {token}"}
 
+    # Check if we should attempt auto-discovery or rely solely on manual list
+    enable_discovery = os.getenv("ENABLE_TENANT_DISCOVERY", "true").lower() == "true"
+
     env_users = [
         u.strip()
         for u in os.getenv("MONITORED_USERS", "").split(",")
@@ -35,7 +38,8 @@ async def get_all_mail_users():
 
     async with httpx.AsyncClient() as client:
         try:
-            while True:
+            # Only query Graph for all users if discovery is enabled
+            while enable_discovery:
                 resp = await client.get(url, headers=headers)
                 resp.raise_for_status()
                 data = resp.json()

@@ -2,7 +2,16 @@
 
 ### _(Up to the point where we left off — ready for continuation in a new chat)_
 
----
+## 📅 Latest Progress (Nov 21, 2025)
+
+- Completed full Proxmox deployment with two LXCs:
+  - `ct-ai-filter` (192.168.1.110) hosting poller + FastAPI dashboard.
+  - `ct-llm` (192.168.1.111) running Ollama + FastAPI LLM wrapper.
+- Added 12-factor stdout logging (LOG_LEVEL/LOG_FORMAT) across poller/API, documented in README.
+- Created reproducible setup scripts/documentation (scripts/setup.sh, README updates).
+- Hardened `ensure_quarantine_folder` to handle Graph 409 conflicts by looking up existing folder IDs.
+- Validated services via CLI (health endpoints, curl classify test, journalctl tail) and confirmed release workflow.
+- Repository pushed to GitHub (`main`), containers now update via `git pull` + `systemctl restart` steps documented in README.
 
 ## 🏗️ **Architecture Overview**
 
